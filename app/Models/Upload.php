@@ -5,6 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Events\UploadCreated;
 
+/**
+ *
+ * @property string $filename
+ * @property string $status
+ * @property int|null $total_rows
+ * @property int|null $processed_rows
+ * @property string|null $error
+ */
+
 class Upload extends Model
 {
     protected $fillable = [
