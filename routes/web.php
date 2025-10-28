@@ -4,7 +4,7 @@ use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('/uploads');
+    return redirect()->route('uploads.index');
 });
 
 // Upload Routes

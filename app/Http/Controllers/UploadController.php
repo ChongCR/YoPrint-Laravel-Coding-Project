@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UploadResource;
 use App\Jobs\ProcessCsvUpload;
 use App\Models\Upload;
 use Illuminate\Http\Request;
@@ -95,32 +96,11 @@ class UploadController extends Controller
     {
         $uploads = Upload::latest()
             ->limit(50)
-            ->get()
-            ->map(function ($upload) {
-                return [
-                    'id' => $upload->id,
-                    'filename' => $upload->filename,
-                    'status' => $upload->status,
-                    'total_rows' => $upload->total_rows ?? 0,
-                    'processed_rows' => $upload->processed_rows ?? 0,
-                    'progress' => $this->calculateProgress($upload),
-                    'error' => $upload->error,
-                    'created_at' => $upload->created_at->toIso8601String(),
-                    'human_time' => $upload->created_at->diffForHumans(),
-                ];
-            });
+            ->get();
 
-        return response()->json($uploads);
+        return UploadResource::collection($uploads);
     }
 
-    private function calculateProgress(Upload $upload): int
-    {
-        if (!$upload->total_rows || $upload->total_rows == 0) {
-            return 0;
-        }
-
-        return (int) min(100, round(($upload->processed_rows / $upload->total_rows) * 100));
-    }
 
     public function destroy(string $id)
     {

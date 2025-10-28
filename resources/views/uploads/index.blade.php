@@ -123,12 +123,49 @@
     </div>
 
     <script>
+        (function () {
+            const pusherKey = '{{ config('broadcasting.connections.pusher.key') }}';
+            const pusherCluster = '{{ config('broadcasting.connections.pusher.options.cluster') }}';
+            const broadcastDriver = '{{ config('broadcasting.default') }}';
+
+            if (broadcastDriver === 'pusher' && pusherKey && pusherCluster) {
+                const script1 = document.createElement('script');
+                script1.src = 'https://js.pusher.com/7.2/pusher.min.js';
+                const script2 = document.createElement('script');
+                script2.src = 'https://cdn.jsdelivr.net/npm/laravel-echo@^1/dist/echo.iife.js';
+
+                script2.onload = function () {
+                    window.Echo = new window.Echo({
+                        broadcaster: 'pusher',
+                        key: pusherKey,
+                        cluster: pusherCluster,
+                        forceTLS: true
+                    });
+
+                    try {
+                        window.Echo.channel('uploads')
+                            .listen('.status.updated', function (e) {
+                                refreshTable();
+                            });
+                    } catch (err) {
+                        console.warn('Echo init failed:', err);
+                    }
+                };
+
+                document.body.appendChild(script1);
+                document.body.appendChild(script2);
+            }
+        })();
+
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const uploadText = document.getElementById('uploadText');
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
-            dropZone.addEventListener(e, evt => { evt.preventDefault(); evt.stopPropagation(); });
+            dropZone.addEventListener(e, evt => {
+                evt.preventDefault();
+                evt.stopPropagation();
+            });
         });
 
         ['dragenter', 'dragover'].forEach(e => {
@@ -147,6 +184,7 @@
             if (fileInput.files.length) uploadFile(fileInput.files[0]);
         });
 
+        // Upload file function
         async function uploadFile(file) {
             if (!file.name.endsWith('.csv')) {
                 alert('Only CSV files allowed');
@@ -169,7 +207,12 @@
 
                 const data = await res.json();
                 uploadText.textContent = res.ok ? `✓ ${file.name} uploaded!` : '✗ Upload failed';
-                if (!res.ok) alert(data.error || 'Upload failed');
+
+                if (!res.ok) {
+                    alert(data.error || 'Upload failed');
+                } else {
+                    refreshTable();
+                }
 
                 setTimeout(() => {
                     uploadText.textContent = 'Select file / Drag and drop';
@@ -181,27 +224,43 @@
             }
         }
 
-        setInterval(() => {
+        function refreshTable() {
             fetch('{{ route("uploads.history") }}')
                 .then(r => r.json())
-                .then(data => {
+                .then(response => {
+                    const data = response.data || response; 
                     const tbody = document.getElementById('uploadsTable');
-                    tbody.innerHTML = data.length ? data.map(u => `
+
+                    if (data.length) {
+                        tbody.innerHTML = data.map(u => `
                         <tr>
-                            <td class="text-muted small">${new Date(u.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}<br><em>${u.human_time}</em></td>
+                            <td class="text-muted small">
+                                ${new Date(u.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                <br><em>${u.human_time}</em>
+                            </td>
                             <td>${u.filename}</td>
                             <td>
                                 <span class="status-${u.status} fw-bold text-capitalize">${u.status}</span>
                                 ${u.status === 'processing' && u.total_rows ? `
-                                    <div class="progress mt-1" style="height: 4px;"><div class="progress-bar" style="width: ${u.progress}%"></div></div>
+                                    <div class="progress mt-1" style="height: 4px;">
+                                        <div class="progress-bar" style="width: ${u.progress}%"></div>
+                                    </div>
                                     <small class="text-muted">${u.processed_rows} / ${u.total_rows}</small>
                                 ` : ''}
                                 ${u.error ? `<br><small class="text-danger">${u.error}</small>` : ''}
                             </td>
                         </tr>
-                    `).join('') : '<tr><td colspan="3" class="text-center text-muted py-4">No uploads yet</td></tr>';
+                    `).join('');
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No uploads yet</td></tr>';
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to refresh table:', err);
                 });
-        }, 3000);
+        }
+
+        setInterval(refreshTable, 3000);
     </script>
 </body>
 
